@@ -20,6 +20,7 @@ CHECKPOINT_FILE_PATH = os.path.join(TRAIN_DATA_DIR, CHECKPOINT_FILE)
 flags.DEFINE_integer("num_epochs", 100, "Num Epochs [100]")
 flags.DEFINE_integer("batch_size", 64, "Batch size [60]")
 NUM_TRAIN_EXAMPLES = read_data.NUM_TRAIN_EXAMPLES
+# TODO: add debug flag so we can debug code without waiting for epoch.
 
 
 def run_training(config):
@@ -41,8 +42,7 @@ def run_training(config):
     # We run this in two threads to avoid being a bottleneck.
     val_images, val_labels = tf.train.batch(
         [image, label], batch_size=config.batch_size, num_threads=2,
-        capacity=500 + 3 * config.batch_size,
-        min_after_dequeue=500)
+        capacity=500 + 3 * config.batch_size)
 
     ## Build a model
     m = model.get_model(config, is_training=True)        
@@ -77,6 +77,8 @@ def run_training(config):
     # TODO: replace with global_step
     step = 0
     num_iter_per_epoch = int(math.ceil(NUM_TRAIN_EXAMPLES / config.batch_size))
+    if True or config.debug:
+        num_iter_per_epoch = 5
     try:
 
         while not coord.should_stop():

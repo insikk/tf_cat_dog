@@ -35,13 +35,15 @@ class Model:
 
         self.logits = self._inference(self.images)
         self.pred_classes = tf.argmax(tf.nn.softmax(self.logits), axis=1)
-        self.acc = tf.metrics.accuracy(self.labels, self.pred_classes)
+        self.acc, _ = tf.metrics.accuracy(self.labels, self.pred_classes)
         
 
         self.loss_cls = self._loss(self.logits, self.labels)
+        print("self.loss", self.loss_cls)
         tf.add_to_collection('losses', self.loss_cls)
 
-        self.loss_reg = slim.losses.get_regularization_losses()
+        self.loss_reg = sum(tf.losses.get_regularization_losses())
+        print("self.loss_reg", self.loss_reg)
         tf.add_to_collection('losses', self.loss_reg)
 
         self.total_loss = tf.add_n(tf.get_collection('losses'), name='total_loss')
