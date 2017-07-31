@@ -35,12 +35,21 @@ def run_training(config):
         # Ensures a minimum amount of shuffling of examples.
         min_after_dequeue=1000)
 
+
+    image_val, label_val = read_data.inputs(data_set='validation', batch_size=config.batch_size, num_epochs=config.num_epochs)
+
+    # We run this in two threads to avoid being a bottleneck.
+    val_images, val_labels = tf.train.batch(
+        [image, label], batch_size=config.batch_size, num_threads=2,
+        capacity=500 + 3 * config.batch_size,
+        min_after_dequeue=500)
+
     ## Build a model
     m = model.get_model(config, is_training=True)        
     
     ## Build trainer
     trainer = Trainer(config)
-    train_op = trainer.training(m.loss)
+    train_op = trainer.training(m.total_loss)
 
     ## Summary 
 
@@ -61,7 +70,6 @@ def run_training(config):
     coord = tf.train.Coordinator()
     threads = tf.train.start_queue_runners(sess=sess, coord=coord)
 
-
     summary_writer = tf.summary.FileWriter(TRAIN_DATA_DIR, sess.graph)
 
     # TODO: add model loader to continue training, or load pretrained weights. 
@@ -77,20 +85,35 @@ def run_training(config):
 
             feed_dict = m.get_feed_dict(batch_images, batch_labels)
 
-            _, loss_value = sess.run([train_op, m.loss], feed_dict=feed_dict)
-
+            _, loss_cls, loss_reg = sess.run([train_op, m.loss_cls, m.loss_reg], feed_dict=feed_dict)
+            tot_loss = loss_cls + loss_reg
             duration = time.time() - start_time
-            assert not np.isnan(loss_value), 'Model diverged with loss = NaN'
+            assert not np.isnan(tot_loss), 'Model diverged with loss = NaN'
 
             if step % 10 == 0:
-                print('Step %d : loss = %.5f (%.3f sec)'
-                        % (step, loss_value, duration))
+                print('Step %d : loss_cls = %.5f, loss_reg = %.5f, loss_tot = %.5f (%.3f sec)'
+                        % (step, loss_cls, loss_reg, tot_loss, duration))
                 summary_str = sess.run(summary_op, feed_dict=feed_dict)
                 summary_writer.add_summary(summary_str, step)
 
             if step % num_iter_per_epoch == 0 and step > 0: # Do not save for step 0
                 num_epochs = int(step / num_iter_per_epoch)
                 saver.save(sess, CHECKPOINT_FILE_PATH, global_step=step)
+                num_batch_eval = 10 # DEBUG Purpose value. 
+                print("Start Periodical Evaluation with Validation Set on Training Graph")
+                sum_loss = 0.0
+                sum_acc = 0.0
+
+                for batch_idx in range(num_batch_eval): # TODO: change it to tqdm. show progress bar
+                    start_time = time.time()
+                    batch_images, batch_labels = sess.run([val_images, val_labels])
+                    feed_dict = m.get_feed_dict(batch_images, batch_labels)
+                    loss_cls, acc = sess.run([m.loss_cls, m.acc], feed_dict=feed_dict)
+                    sum_loss += loss_cls
+                    sum_acc += acc
+                    duration = time.time() - start_time
+                    print('Eval Batch %d/%d. loss_cls = %.5f, acc = %.2f'%(batch_idx, num_batch_eval, loss_cls, acc))
+                print('Eval Done. loss_cls = %.5f, acc = %.2f'%(sum_loss / num_batch_eval, sum_acc / num_batch_eval))
                 print('epochs done on training dataset = %d' % num_epochs)
                 # eval_cnn.evaluate('validation', checkpoint_dir=TRAIN_DATA_DIR)
 

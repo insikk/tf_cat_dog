@@ -34,15 +34,18 @@ class Model:
         self.labels = tf.placeholder('int32', [None], name='labels')
 
         self.logits = self._inference(self.images)
-
-
-        self.loss = self._loss(self.logits, self.labels)
-
-        
+        self.pred_classes = tf.argmax(tf.nn.softmax(self.logits), axis=1)
+        self.acc = tf.metrics.accuracy(self.labels, self.pred_classes)
         
 
+        self.loss_cls = self._loss(self.logits, self.labels)
+        tf.add_to_collection('losses', self.loss_cls)
 
+        self.loss_reg = slim.losses.get_regularization_losses()
+        tf.add_to_collection('losses', self.loss_reg)
 
+        self.total_loss = tf.add_n(tf.get_collection('losses'), name='total_loss')
+        
     def _inference(self, images):
 
         
@@ -58,15 +61,8 @@ class Model:
             net = slim.max_pool2d(net, [2, 2], scope='pool3')
             net = slim.repeat(net, 3, slim.conv2d, 64, [3, 3], scope='conv4')
             net = slim.max_pool2d(net, [2, 2], scope='pool4')
-            net = slim.repeat(net, 3, slim.conv2d, 64, [3, 3], scope='conv5')
-            net = slim.max_pool2d(net, [2, 2], scope='pool5')
-            net = slim.flatten(net, scope='flatten3')
-
+            net = slim.flatten(net, scope='flatten5')
             net = slim.fully_connected(net, 256, scope='fc6')
-            net = slim.dropout(net, DROP_PROB, scope='dropout6')
-            net = slim.fully_connected(net, 256, scope='fc7')
-            net = slim.dropout(net, DROP_PROB, scope='dropout7')
-            net = slim.fully_connected(net, 256, activation_fn=None, scope='fc8')
             # Adds a dropout layer to prevent over-fitting.
             net = slim.dropout(net, DROP_PROB, is_training=self.is_training)
             logits = slim.fully_connected(net, NUM_CLASSES, activation_fn=None)
@@ -80,13 +76,10 @@ class Model:
             labels,
             NUM_CLASSES)
 
-        print("logits:", self.logits)
-        print("one_hot_labels:", one_hot_labels)
-        cross_entropy = tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=one_hot_labels, name='xentropy')
-        data_loss = tf.reduce_mean(cross_entropy, name='xentropy_mean')
-        tf.add_to_collection('losses', data_loss)
-        total_loss = tf.add_n(tf.get_collection('losses'), name='total_loss')
-        return total_loss
+        cross_entropy = tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=one_hot_labels, name='cross_entropy_total')
+        data_loss = tf.reduce_mean(cross_entropy, name='cross_entropy_mean')
+        return data_loss
+
     
     def get_feed_dict(self, images, labels):
         feed_dict = {self.images: images, self.labels: labels}
