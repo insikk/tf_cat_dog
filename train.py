@@ -10,6 +10,7 @@ import eval_cnn
 from trainer import Trainer
 
 
+
 flags = tf.app.flags
 
 
@@ -18,12 +19,14 @@ CHECKPOINT_FILE = 'model.ckpt'
 CHECKPOINT_FILE_PATH = os.path.join(TRAIN_DATA_DIR, CHECKPOINT_FILE)
 
 flags.DEFINE_integer("num_epochs", 100, "Num Epochs [100]")
-flags.DEFINE_integer("batch_size", 64, "Batch size [60]")
+flags.DEFINE_integer("batch_size", 100, "Batch size [100]")
 flags.DEFINE_integer("num_classes", 2, "Num classes [2]")
 
 flags.DEFINE_float("keep_prob", 0.8, "Dropout keep probability [0.8]")
 
 NUM_TRAIN_EXAMPLES = read_data.NUM_TRAIN_EXAMPLES
+NUM_VALIDATION_EXAMPLES = read_data.NUM_VALIDATION_EXAMPLES
+
 # TODO: add debug flag so we can debug code without waiting for epoch.
 
 
@@ -81,8 +84,9 @@ def run_training(config):
     # TODO: replace with global_step
     step = 0
     num_iter_per_epoch = int(math.ceil(NUM_TRAIN_EXAMPLES / config.batch_size))
-    if True or config.debug:
-        num_iter_per_epoch = 50
+    num_batch_eval = int(math.ceil(NUM_VALIDATION_EXAMPLES / config.batch_size))
+    # if True or config.debug:
+    #    num_iter_per_epoch = 50
     try:
 
         while not coord.should_stop():
@@ -105,7 +109,6 @@ def run_training(config):
             if step % num_iter_per_epoch == 0 and step > 0: # Do not save for step 0
                 num_epochs = int(step / num_iter_per_epoch)
                 saver.save(sess, CHECKPOINT_FILE_PATH, global_step=step)
-                num_batch_eval = 10 # DEBUG Purpose value. 
                 print("Start Periodical Evaluation with Validation Set on Training Graph")
                 sum_loss = 0.0
                 sum_acc = 0.0
@@ -115,12 +118,10 @@ def run_training(config):
                     batch_images, batch_labels = sess.run([val_images, val_labels])
                     feed_dict = m.get_feed_dict(batch_images, batch_labels)
                     loss_cls, acc, pred_y = sess.run([m.loss_cls, m.acc, m.pred_classes], feed_dict=feed_dict)
-                    print("labels:", batch_labels)
-                    print("pred_y:", pred_y)
                     sum_loss += loss_cls
                     sum_acc += acc
                     duration = time.time() - start_time
-                    print('Eval Batch %d/%d. loss_cls = %.5f, acc = %.2f'%(batch_idx, num_batch_eval, loss_cls, acc))
+                    # print('Eval Batch %d/%d. loss_cls = %.5f, acc = %.2f'%(batch_idx, num_batch_eval, loss_cls, acc))
                 print('Eval Done. loss_cls = %.5f, acc = %.2f'%(sum_loss / num_batch_eval, sum_acc / num_batch_eval))
                 print('epochs done on training dataset = %d' % num_epochs)
                 # eval_cnn.evaluate('validation', checkpoint_dir=TRAIN_DATA_DIR)

@@ -116,7 +116,6 @@ class Model:
         self.logits = self._inference(self.images)
         self.pred_classes = tf.cast(tf.argmax(tf.nn.softmax(self.logits), axis=1), tf.int32)
         self.acc= slim.metrics.accuracy(self.labels, self.pred_classes)
-        # self.acc, _ = tf.metrics.accuracy(self.labels, self.pred_classes)
         
 
         self.loss_cls = self._loss(self.logits, self.labels)
