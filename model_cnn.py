@@ -62,21 +62,25 @@ def alexnet_v2(inputs,
     # Collect outputs for conv2d, fully_connected and max_pool2d.
     with slim.arg_scope([slim.conv2d, slim.fully_connected, slim.max_pool2d],
                         outputs_collections=[end_points_collection]):
-      net = slim.conv2d(inputs, 64, [11, 11], 4, padding='VALID',
+      net = slim.conv2d(inputs, 64, [3, 3], 2, padding='VALID',
                         scope='conv1')
       net = slim.max_pool2d(net, [3, 3], 2, scope='pool1')
-      net = slim.conv2d(net, 192, [5, 5], scope='conv2')
+      net = slim.conv2d(net, 192, [3, 3], scope='conv2')
       net = slim.max_pool2d(net, [3, 3], 2, scope='pool2')
-      net = slim.conv2d(net, 384, [3, 3], scope='conv3')
-      net = slim.conv2d(net, 384, [3, 3], scope='conv4')
+      net = slim.conv2d(net, 256, [3, 3], scope='conv3')
+      net = slim.conv2d(net, 256, [3, 3], scope='conv4')
       net = slim.conv2d(net, 256, [3, 3], scope='conv5')
       net = slim.max_pool2d(net, [3, 3], 2, scope='pool5')
+      net = slim.conv2d(net, 256, [3, 3], scope='conv6')
+      net = slim.conv2d(net, 256, [3, 3], scope='conv7')
+      net = slim.conv2d(net, 256, [3, 3], scope='conv8')
+      net = slim.max_pool2d(net, [3, 3], 2, scope='pool8')
 
       # Use conv2d instead of fully_connected layers.
       with slim.arg_scope([slim.conv2d],
                           weights_initializer=tf.truncated_normal_initializer(0.0, 0.005),
                           biases_initializer=tf.constant_initializer(0.1)):
-        net = slim.conv2d(net, 4096, [5, 5], padding='VALID',
+        net = slim.conv2d(net, 4096, [3, 3], padding='VALID',
                           scope='fc6')
         net = slim.dropout(net, dropout_keep_prob, is_training=is_training,
                            scope='dropout6')
@@ -110,20 +114,22 @@ class Model:
         self.labels = tf.placeholder('int32', [None], name='labels')
 
         self.logits = self._inference(self.images)
-        self.pred_classes = tf.argmax(tf.nn.softmax(self.logits), axis=1)
-        self.acc, _ = tf.metrics.accuracy(self.labels, self.pred_classes)
+        self.pred_classes = tf.cast(tf.argmax(tf.nn.softmax(self.logits), axis=1), tf.int32)
+        self.acc= slim.metrics.accuracy(self.labels, self.pred_classes)
+        # self.acc, _ = tf.metrics.accuracy(self.labels, self.pred_classes)
         
 
         self.loss_cls = self._loss(self.logits, self.labels)
         tf.add_to_collection('losses', self.loss_cls)
 
-        self.loss_reg = sum(tf.losses.get_regularization_losses())
+        self.loss_reg = tf.add_n(slim.losses.get_regularization_losses())
         tf.add_to_collection('losses', self.loss_reg)
 
         self.total_loss = tf.add_n(tf.get_collection('losses'), name='total_loss')
         
     def _inference(self, images):
-        logits, end_points = alexnet_v2(images, config.num_classes, self.is_training, self.config.dropout_keep_prob)
+        with slim.arg_scope(alexnet_v2_arg_scope()):
+            logits, end_points = alexnet_v2(images, self.config.num_classes, self.is_training, self.config.keep_prob)
         _activation_summary(logits)
 
         return logits

@@ -19,6 +19,7 @@ CHECKPOINT_FILE_PATH = os.path.join(TRAIN_DATA_DIR, CHECKPOINT_FILE)
 
 flags.DEFINE_integer("num_epochs", 100, "Num Epochs [100]")
 flags.DEFINE_integer("batch_size", 64, "Batch size [60]")
+flags.DEFINE_integer("num_classes", 2, "Num classes [2]")
 
 flags.DEFINE_float("keep_prob", 0.8, "Dropout keep probability [0.8]")
 
@@ -81,7 +82,7 @@ def run_training(config):
     step = 0
     num_iter_per_epoch = int(math.ceil(NUM_TRAIN_EXAMPLES / config.batch_size))
     if True or config.debug:
-        num_iter_per_epoch = 5
+        num_iter_per_epoch = 50
     try:
 
         while not coord.should_stop():
@@ -113,7 +114,9 @@ def run_training(config):
                     start_time = time.time()
                     batch_images, batch_labels = sess.run([val_images, val_labels])
                     feed_dict = m.get_feed_dict(batch_images, batch_labels)
-                    loss_cls, acc = sess.run([m.loss_cls, m.acc], feed_dict=feed_dict)
+                    loss_cls, acc, pred_y = sess.run([m.loss_cls, m.acc, m.pred_classes], feed_dict=feed_dict)
+                    print("labels:", batch_labels)
+                    print("pred_y:", pred_y)
                     sum_loss += loss_cls
                     sum_acc += acc
                     duration = time.time() - start_time
