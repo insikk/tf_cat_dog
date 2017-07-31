@@ -19,6 +19,9 @@ CHECKPOINT_FILE_PATH = os.path.join(TRAIN_DATA_DIR, CHECKPOINT_FILE)
 
 flags.DEFINE_integer("num_epochs", 100, "Num Epochs [100]")
 flags.DEFINE_integer("batch_size", 64, "Batch size [60]")
+
+flags.DEFINE_float("keep_prob", 0.8, "Dropout keep probability [0.8]")
+
 NUM_TRAIN_EXAMPLES = read_data.NUM_TRAIN_EXAMPLES
 # TODO: add debug flag so we can debug code without waiting for epoch.
 
