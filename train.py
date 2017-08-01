@@ -4,7 +4,10 @@ import math
 import os.path
 import read_data
 import model_cnn as model
+
 import tensorflow as tf
+from tensorflow.contrib import slim
+
 import eval_cnn
 
 from trainer import Trainer
@@ -20,7 +23,7 @@ flags.DEFINE_string("train_dir", "train_output", "training output directory. che
 
 flags.DEFINE_integer("load_step", 0, "load model weight at the given global step [0]")
 flags.DEFINE_integer("num_epochs", 100, "Num Epochs [100]")
-flags.DEFINE_integer("batch_size", 100, "Batch size [100]")
+flags.DEFINE_integer("batch_size", 300, "Batch size [100]")
 flags.DEFINE_integer("num_classes", 2, "Num classes [2]")
 
 flags.DEFINE_float("keep_prob", 0.8, "Dropout keep probability [0.8]")
@@ -30,7 +33,7 @@ NUM_VALIDATION_EXAMPLES = read_data.NUM_VALIDATION_EXAMPLES
 
 # TODO: add debug flag so we can debug code without waiting for epoch.
 def restore(config, sess):
-     """restore from the previous checkpoint"""
+    """restore from the previous checkpoint"""
     try:
         checkpoint_path = tf.train.latest_checkpoint(config.train_dir)
         restorer = tf.train.Saver()
@@ -79,6 +82,13 @@ def run_training(config):
 
     tf_global_step = slim.get_or_create_global_step()
 
+    
+    ## Init a model
+    init_op = tf.group(tf.initialize_all_variables(), tf.initialize_local_variables())
+    gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.9)
+    sess = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
+    sess.run(init_op)
+
     # Load from previous one
     if config.load_step > 0:
         save_path = os.path.join(config.train_dir, "{}-{}".format('model.ckpt', config.load_step))
@@ -86,14 +96,8 @@ def run_training(config):
         saver = tf.train.Saver()
         saver.restore(sess, save_path)
     else:
-        restore(sess)
+        restore(config, sess)
     
-    ## Init a model
-    init_op = tf.group(tf.initialize_all_variables(), tf.initialize_local_variables())
-
-    sess = tf.Session()
-    sess.run(init_op)
-
     ## Saver
     saver = tf.train.Saver(tf.all_variables(), max_to_keep=5)
 
@@ -101,7 +105,7 @@ def run_training(config):
     coord = tf.train.Coordinator()
     threads = tf.train.start_queue_runners(sess=sess, coord=coord)
 
-    summary_writer = tf.summary.FileWriter(TRAIN_DATA_DIR, sess.graph)
+    summary_writer = tf.summary.FileWriter(os.path.join(config.train_dir, "summary"), sess.graph)
 
     # TODO: add model loader to continue training, or load pretrained weights. 
     
@@ -125,14 +129,14 @@ def run_training(config):
             duration = time.time() - start_time
             assert not np.isnan(tot_loss), 'Model diverged with loss = NaN'
 
-            if step % 10 == 0:
-                print('GlobalStep %d : loss_cls = %.5f, loss_reg = %.5f, loss_tot = %.5f (%.3f sec)'
+            if global_step % 10 == 0:
+                print('GlobalStep %d : loss_cls = %.5f, loss_reg = %.5f, loss_tot = %.5f (%.3f sec/step)'
                         % (global_step, loss_cls, loss_reg, tot_loss, duration))
                 summary_str = sess.run(summary_op, feed_dict=feed_dict)
-                summary_writer.add_summary(summary_str, step)
+                summary_writer.add_summary(summary_str, global_step)
 
-            if step % num_iter_per_epoch == 0 and step > 0: # Do not save for step 0
-                num_epochs = int(step / num_iter_per_epoch)
+            if global_step % num_iter_per_epoch == 0 and global_step > 0: # Do not save for step 0
+                num_epochs = int(global_step / num_iter_per_epoch)
                 CHECKPOINT_FILE_PATH = os.path.join(config.train_dir, 'model.ckpt')
                 saver.save(sess, CHECKPOINT_FILE_PATH, global_step=global_step)
                 print("Start Periodical Evaluation with Validation Set on Training Graph")
@@ -148,6 +152,12 @@ def run_training(config):
                     sum_acc += acc
                     duration = time.time() - start_time
                     # print('Eval Batch %d/%d. loss_cls = %.5f, acc = %.2f'%(batch_idx, num_batch_eval, loss_cls, acc))
+                val_loss = sum_loss / num_batch_eval
+                val_acc = sum_acc / num_batch_eval
+                summary = tf.Summary()
+                summary.value.add(tag='val_loss', simple_value=val_loss)
+                summary.value.add(tag='val_acc', simple_value=val_acc)
+                summary_writer.add_summary(summary, global_step)
                 print('Eval Done. loss_cls = %.5f, acc = %.2f'%(sum_loss / num_batch_eval, sum_acc / num_batch_eval))
                 print('epochs done on training dataset = %d' % num_epochs)
                 # eval_cnn.evaluate('validation', checkpoint_dir=TRAIN_DATA_DIR)
@@ -155,7 +165,7 @@ def run_training(config):
             step += 1
 
     except tf.errors.OutOfRangeError:
-        print('Done training for %d epochs, %d steps' % (config.num_epochs, step))
+        print('Done training for %d epochs, %d steps' % (config.num_epochs, global_step))
     finally:
         coord.request_stop()
 
