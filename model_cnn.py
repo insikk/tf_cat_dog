@@ -75,6 +75,10 @@ def alexnet_v2(inputs,
       net = slim.conv2d(net, 256, [3, 3], scope='conv7')
       net = slim.conv2d(net, 256, [3, 3], scope='conv8')
       net = slim.max_pool2d(net, [3, 3], 2, scope='pool8')
+      net = slim.conv2d(net, 256, [3, 3], scope='conv4_1')
+      net = slim.conv2d(net, 256, [3, 3], scope='conv4_2')
+      net = slim.conv2d(net, 256, [3, 3], scope='conv4_3')
+      net = slim.max_pool2d(net, [3, 3], 2, scope='pool5')
 
       # Use conv2d instead of fully_connected layers.
       with slim.arg_scope([slim.conv2d],
@@ -108,7 +112,7 @@ class Model:
 
         # Define forward inputs here
         N = config.batch_size
-        self.images = tf.placeholder('float32', [None, 128, 128, 3], name='images')
+        self.images = tf.placeholder('float32', [None, 256, 256, 3], name='images')
         self.labels = tf.placeholder('int32', [None], name='labels')
 
         self.logits = self._inference(self.images)

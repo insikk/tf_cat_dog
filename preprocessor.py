@@ -1,4 +1,4 @@
-
+import tensorflow as tf
 
 def preprocess(image, augmentation=False, is_training=False):
   """ 

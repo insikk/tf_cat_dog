@@ -24,7 +24,7 @@ flags.DEFINE_string("train_dir", "train_output", "training output directory. che
 
 flags.DEFINE_integer("load_step", 0, "load model weight at the given global step [0]")
 flags.DEFINE_integer("num_epochs", 100, "Num Epochs [100]")
-flags.DEFINE_integer("batch_size", 300, "Batch size [100]")
+flags.DEFINE_integer("batch_size", 200, "Batch size [100]")
 flags.DEFINE_integer("num_classes", 2, "Num classes [2]")
 
 flags.DEFINE_float("keep_prob", 0.8, "Dropout keep probability [0.8]")
