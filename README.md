@@ -7,11 +7,12 @@ Vision. Image Classifier Cat/Dog. Tensorflow 1.2
 [ ] Use Adam optimizer. It's my favorite
 [ ] Test submission on Kaggle. See public leaderboard result
 [ ] Try multiple model ensemble and see changes on public leader board
-[ ] Consider batch-normalization on every layer
+[ ] VGG Net is known as slow. Is there better model for image classification?
 [ ] Consider using image normalization with mean value from train_dataset
 
+[v] Consider batch-normalization on every layer
 [v] Add image augmentatio (horizontal flip, image jitter, random crop)
 [v] Pull out global_step var in train.py. Use it for save/load and logging.
-[.] Make validation set containing same ratio of dog and cat classes
+[v] Make validation set containing same ratio of dog and cat classes
 [v] Enable tensorboard draw graph for train loss, train acc, val loss, val acc
 [v] Loader/Saver implementation. 
