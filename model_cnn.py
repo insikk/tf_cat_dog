@@ -104,8 +104,6 @@ class Model:
     def __init__(self, config, is_training):
         # Build Model
         self.config = config
-        self.global_step = tf.get_variable('global_step', shape=[], dtype='int32',
-                                           initializer=tf.constant_initializer(0), trainable=False)
         self.is_training = is_training
 
         # Define forward inputs here
