@@ -62,43 +62,58 @@ def alexnet_v2(inputs,
     # Collect outputs for conv2d, fully_connected and max_pool2d.
     with slim.arg_scope([slim.conv2d, slim.fully_connected, slim.max_pool2d],
                         outputs_collections=[end_points_collection]):
-      net = slim.conv2d(inputs, 64, [3, 3], 2, padding='VALID',
-                        scope='conv1')
-      net = slim.max_pool2d(net, [3, 3], 2, scope='pool1')
-      net = slim.conv2d(net, 192, [3, 3], scope='conv2')
-      net = slim.max_pool2d(net, [3, 3], 2, scope='pool2')
-      net = slim.conv2d(net, 256, [3, 3], scope='conv3')
-      net = slim.conv2d(net, 256, [3, 3], scope='conv4')
-      net = slim.conv2d(net, 256, [3, 3], scope='conv5')
-      net = slim.max_pool2d(net, [3, 3], 2, scope='pool5')
-      net = slim.conv2d(net, 256, [3, 3], scope='conv6')
-      net = slim.conv2d(net, 256, [3, 3], scope='conv7')
-      net = slim.conv2d(net, 256, [3, 3], scope='conv8')
-      net = slim.max_pool2d(net, [3, 3], 2, scope='pool8')
+        with slim.arg_scope([slim.batch_norm], is_training=is_training):
+            net = slim.conv2d(inputs, 64, [3, 3], 2, padding='VALID',
+                                scope='conv1', activation_fn=None)
+            net = slim.batch_norm(net, activation_fn=tf.nn.relu, scope='conv1_bn')
+            net = slim.max_pool2d(net, [3, 3], 2, scope='pool1')
 
-      # Use conv2d instead of fully_connected layers.
-      with slim.arg_scope([slim.conv2d],
-                          weights_initializer=tf.truncated_normal_initializer(0.0, 0.005),
-                          biases_initializer=tf.constant_initializer(0.1)):
-        net = slim.conv2d(net, 4096, [3, 3], padding='VALID',
-                          scope='fc6')
-        net = slim.dropout(net, dropout_keep_prob, is_training=is_training,
-                           scope='dropout6')
-        net = slim.conv2d(net, 4096, [1, 1], scope='fc7')
-        net = slim.dropout(net, dropout_keep_prob, is_training=is_training,
-                           scope='dropout7')
-        net = slim.conv2d(net, num_classes, [1, 1],
-                          activation_fn=None,
-                          normalizer_fn=None,
-                          biases_initializer=tf.zeros_initializer(),
-                          scope='fc8')
+            net = slim.conv2d(net, 128, [3, 3], scope='conv2_1')
+            net = slim.conv2d(net, 128, [3, 3], scope='conv2_2', activation_fn=None)
+            net = slim.batch_norm(net, activation_fn=tf.nn.relu, scope='conv2_bn')
+            net = slim.max_pool2d(net, [3, 3], 2, scope='pool2')
 
-      # Convert end_points_collection into a end_point dict.
-      end_points = slim.utils.convert_collection_to_dict(end_points_collection)
-      if spatial_squeeze:
-        net = tf.squeeze(net, [1, 2], name='fc8/squeezed')
-        end_points[sc.name + '/fc8'] = net
-      return net, end_points
+            net = slim.conv2d(net, 256, [3, 3], scope='conv3_1')
+            net = slim.conv2d(net, 256, [3, 3], scope='conv3_2')
+            net = slim.conv2d(net, 256, [3, 3], scope='conv3_3', activation_fn=None)
+            net = slim.batch_norm(net, activation_fn=tf.nn.relu, scope='conv3_bn')
+            net = slim.max_pool2d(net, [3, 3], 2, scope='pool3')
+
+            net = slim.conv2d(net, 256, [3, 3], scope='conv4_1')
+            net = slim.conv2d(net, 256, [3, 3], scope='conv4_2')
+            net = slim.conv2d(net, 256, [3, 3], scope='conv4_3', activation_fn=None)
+            net = slim.batch_norm(net, activation_fn=tf.nn.relu, scope='conv4_bn')
+            net = slim.max_pool2d(net, [3, 3], 2, scope='pool4')
+            
+            net = slim.conv2d(net, 512, [3, 3], scope='conv5_1')
+            net = slim.conv2d(net, 512, [3, 3], scope='conv5_2')
+            net = slim.conv2d(net, 512, [3, 3], scope='conv5_3', activation_fn=None)
+            net = slim.batch_norm(net, activation_fn=tf.nn.relu, scope='conv5_bn')
+            net = slim.max_pool2d(net, [3, 3], 2, scope='pool5')
+
+            # Use conv2d instead of fully_connected layers.
+            with slim.arg_scope([slim.conv2d],
+                                weights_initializer=tf.truncated_normal_initializer(0.0, 0.005),
+                                biases_initializer=tf.constant_initializer(0.1)):
+                net = slim.conv2d(net, 4096, [3, 3], padding='VALID',
+                                scope='fc6')
+                net = slim.dropout(net, dropout_keep_prob, is_training=is_training,
+                                scope='dropout6')
+                net = slim.conv2d(net, 4096, [1, 1], scope='fc7')
+                net = slim.dropout(net, dropout_keep_prob, is_training=is_training,
+                                scope='dropout7')
+                net = slim.conv2d(net, num_classes, [1, 1],
+                                activation_fn=None,
+                                normalizer_fn=None,
+                                biases_initializer=tf.zeros_initializer(),
+                                scope='fc8')
+
+            # Convert end_points_collection into a end_point dict.
+            end_points = slim.utils.convert_collection_to_dict(end_points_collection)
+            if spatial_squeeze:
+                net = tf.squeeze(net, [1, 2], name='fc8/squeezed')
+                end_points[sc.name + '/fc8'] = net
+            return net, end_points
 
 class Model:
     def __init__(self, config, is_training):
@@ -108,7 +123,7 @@ class Model:
 
         # Define forward inputs here
         N = config.batch_size
-        self.images = tf.placeholder('float32', [None, 128, 128, 3], name='images')
+        self.images = tf.placeholder('float32', [None, 256, 256, 3], name='images')
         self.labels = tf.placeholder('int32', [None], name='labels')
 
         self.logits = self._inference(self.images)

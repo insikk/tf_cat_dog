@@ -16,8 +16,8 @@ DATA_DIR = 'data/records/'                     # Local CPU
 IMG_CLASSES = ['dog', 'cat']
 NUM_CLASSES = 2
 
-IMG_HEIGHT = int(128)
-IMG_WIDTH = int(128)
+IMG_HEIGHT = 280
+IMG_WIDTH = 280
 IMG_CHANNELS = 3
 
 IMG_PIXELS = IMG_HEIGHT * IMG_WIDTH * IMG_CHANNELS
@@ -64,8 +64,6 @@ def read_and_decode(filename_queue):
     image.set_shape([IMG_PIXELS])
     image = tf.reshape(image, [IMG_HEIGHT, IMG_WIDTH, IMG_CHANNELS])
 
-    # Convert from [0, 255] -> [-0.5, 0.5] floats.
-    image = tf.cast(image, tf.float32) * (1. / 255) - 0.5
 
     return image, label
 

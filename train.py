@@ -11,6 +11,7 @@ from tensorflow.contrib import slim
 import eval_cnn
 
 from trainer import Trainer
+import preprocessor
 
 
 
@@ -23,10 +24,13 @@ flags.DEFINE_string("train_dir", "train_output", "training output directory. che
 
 flags.DEFINE_integer("load_step", 0, "load model weight at the given global step [0]")
 flags.DEFINE_integer("num_epochs", 100, "Num Epochs [100]")
-flags.DEFINE_integer("batch_size", 300, "Batch size [100]")
+flags.DEFINE_integer("batch_size", 200, "Batch size [100]")
 flags.DEFINE_integer("num_classes", 2, "Num classes [2]")
 
 flags.DEFINE_float("keep_prob", 0.8, "Dropout keep probability [0.8]")
+
+flags.DEFINE_integer("augmentation", True, "Input image augmentation (flip, random crop) [True]")
+
 
 NUM_TRAIN_EXAMPLES = read_data.NUM_TRAIN_EXAMPLES
 NUM_VALIDATION_EXAMPLES = read_data.NUM_VALIDATION_EXAMPLES
@@ -51,7 +55,7 @@ def restore(config, sess):
 def run_training(config):
     print("config.num_epochs:", config.num_epochs)
     image, label = read_data.inputs(data_set='train', batch_size=config.batch_size, num_epochs=config.num_epochs)
-
+    image = preprocessor.preprocess(image, config.augmentation, is_training=True)
     # Shuffle the examples and collect them into batch_size batches.
     # (Internally uses a RandomShuffleQueue.)
     # We run this in two threads to avoid being a bottleneck.
@@ -63,6 +67,7 @@ def run_training(config):
 
 
     image_val, label_val = read_data.inputs(data_set='validation', batch_size=config.batch_size, num_epochs=config.num_epochs)
+    image_val = preprocessor.preprocess(image_val, config.augmentation, is_training=False)
 
     # We run this in two threads to avoid being a bottleneck.
     val_images, val_labels = tf.train.batch(
