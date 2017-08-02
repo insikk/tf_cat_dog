@@ -2,6 +2,9 @@
 Vision. Image Classifier Cat/Dog. Tensorflow 1.2
 
 # TODO
+[ ] ratio could be import for spatial feature, try zeropadding.
+[ ] start from small dataset
+[ ] Binary softmax vs sigmoid. logloss 
 [ ] Test submission on Kaggle. See public leaderboard result
 [ ] Make evaluator. Evaluate a given image dir with inference graph
 [ ] Make notebook so we can see inference result from known images.
