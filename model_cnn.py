@@ -128,6 +128,7 @@ class Model:
 
         self.logits = self._inference(self.images)
         self.pred_classes = tf.cast(tf.argmax(tf.nn.softmax(self.logits), axis=1), tf.int32)
+        self.pred_dog = tf.nn.softmax(self.logits)[:, 0]
         self.acc= slim.metrics.accuracy(self.labels, self.pred_classes)
         
 

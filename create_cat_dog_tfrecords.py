@@ -148,7 +148,7 @@ def main(_):
     config = flags.FLAGS
     if config.splitname == "trainval":
         process_trainval()
-    elif config.splitname == "test"      
+    elif config.splitname == "test":
         process_test()
     else:
         print("unknown splitname is given:", config.splitname)
