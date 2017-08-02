@@ -14,6 +14,10 @@ import tensorflow as tf
 import read_data
 
 
+flags = tf.app.flags
+
+flags.DEFINE_string("splitname", "trainval", "trainval or test")
+
 
 DATA_DIR = 'data/records'
 TRAIN_DATA_PATH = 'data/train/'
@@ -102,43 +106,54 @@ def convert_to(images, labels, name, log=False):
         print("Done!") 
 
 
-def main():
-  log_flag = True
+def process_trainval():
+    log_flag = True
 
-  train_images, train_labels = read_images(TRAIN_DATA_PATH, IMG_CLASSES,
+    train_images, train_labels = read_images(TRAIN_DATA_PATH, IMG_CLASSES,
                                                         IMG_HEIGHT, IMG_WIDTH, IMG_CHANNELS, log_flag)
 
-  # Generate a validation set.
-  cat_idx = np.where(train_labels == 1)[0]
-  print("number of cats:", len(cat_idx))
-  dog_idx = np.where(train_labels == 0)[0]
-  print("number of dogs:", len(dog_idx))
+    # Generate a validation set.
+    cat_idx = np.where(train_labels == 1)[0]
+    print("number of cats:", len(cat_idx))
+    dog_idx = np.where(train_labels == 0)[0]
+    print("number of dogs:", len(dog_idx))
 
-  cat_val_idx = np.random.choice(cat_idx, 2500, replace=False)
-  cat_train_idx = np.setdiff1d(cat_idx, cat_val_idx)
+    cat_val_idx = np.random.choice(cat_idx, 2500, replace=False)
+    cat_train_idx = np.setdiff1d(cat_idx, cat_val_idx)
 
-  dog_val_idx = np.random.choice(dog_idx, 2500, replace=False)
-  dog_train_idx = np.setdiff1d(dog_idx, dog_val_idx)
+    dog_val_idx = np.random.choice(dog_idx, 2500, replace=False)
+    dog_train_idx = np.setdiff1d(dog_idx, dog_val_idx)
 
-  val_idx = np.random.permutation(np.array(cat_val_idx.tolist() + dog_val_idx.tolist()))
-  train_idx = np.random.permutation(np.array(cat_train_idx.tolist() + dog_train_idx.tolist()))
+    val_idx = np.random.permutation(np.array(cat_val_idx.tolist() + dog_val_idx.tolist()))
+    train_idx = np.random.permutation(np.array(cat_train_idx.tolist() + dog_train_idx.tolist()))
 
-  validation_images = train_images[val_idx, :, :, :]
-  validation_labels = train_labels[val_idx]
-  train_images = train_images[train_idx, :, :, :]
-  train_labels = train_labels[train_idx]
+    validation_images = train_images[val_idx, :, :, :]
+    validation_labels = train_labels[val_idx]
+    train_images = train_images[train_idx, :, :, :]
+    train_labels = train_labels[train_idx]
 
-  # Convert to Examples and write the result to TFRecords.
+    # Convert to Examples and write the result to TFRecords.
 
-  convert_to(train_images, train_labels, 'train', log_flag)
-  convert_to(validation_images, validation_labels, 'validation', log_flag)
+    convert_to(train_images, train_labels, 'train', log_flag)
+    convert_to(validation_images, validation_labels, 'validation', log_flag)
 
-  print("Reading test images...")
-  test_images, test_labels = read_images(TEST_DATA_PATH, IMG_CLASSES,
-                                                      IMG_HEIGHT, IMG_WIDTH, IMG_CHANNELS, log_flag)
+def process_test():
+    log_flag = True
+    print("Reading test images...")
+    test_images, test_labels = read_images(TEST_DATA_PATH, IMG_CLASSES,
+                                                        IMG_HEIGHT, IMG_WIDTH, IMG_CHANNELS, log_flag)
+    convert_to(test_images, test_labels, 'test', log_flag)
 
-  convert_to(test_images, test_labels, 'test', log_flag)
+def main(_):
+    config = flags.FLAGS
+    if config.splitname == "trainval":
+        process_trainval()
+    elif config.splitname == "test"      
+        process_test()
+    else:
+        print("unknown splitname is given:", config.splitname)
+        print("exit program.")
 
 
-if __name__ == "__main__":
-  main()
+if __name__ == '__main__':
+    tf.app.run()
