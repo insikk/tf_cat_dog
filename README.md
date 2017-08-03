@@ -1,6 +1,15 @@
 # tf_cat_dog
 Vision. Image Classifier Cat/Dog. Tensorflow 1.2
 
+# Train
+
+`python train.py`
+
+# Eval
+
+`python train.py --mode=test`
+
+
 # TODO
 [ ] ratio could be import for spatial feature, try zeropadding.
 [ ] start from small dataset

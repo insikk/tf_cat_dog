@@ -3,7 +3,7 @@ import time
 import math
 import os.path
 import read_data
-import model_cnn as model
+import model_cnn_simple_128 as model
 
 import tensorflow as tf
 from tensorflow.contrib import slim
@@ -65,7 +65,7 @@ def run_training(config):
     # (Internally uses a RandomShuffleQueue.)
     # We run this in two threads to avoid being a bottleneck.
     train_images, train_labels = tf.train.shuffle_batch(
-        [image, label], batch_size=config.batch_size, num_threads=2,
+        [image, label], batch_size=config.batch_size, num_threads=4,
         capacity=1000 + 3 * config.batch_size,
         # Ensures a minimum amount of shuffling of examples.
         min_after_dequeue=1000)
@@ -76,7 +76,7 @@ def run_training(config):
 
     # We run this in two threads to avoid being a bottleneck.
     val_images, val_labels = tf.train.batch(
-        [image, label], batch_size=config.batch_size, num_threads=2,
+        [image, label], batch_size=config.batch_size, num_threads=4,
         capacity=500 + 3 * config.batch_size)
 
     ## Build a model
@@ -141,7 +141,7 @@ def run_training(config):
 
             if global_step % 10 == 0:
                 print('GlobalStep %d : loss_cls = %.5f, loss_reg = %.5f, loss_tot = %.5f (%.3f sec/step)'
-                        % (global_step, loss_cls, loss_reg, tot_loss, duration))
+                        % (global_step, loss_cls, loss_reg, tot_loss, duration))                
                 summary_str = sess.run(summary_op, feed_dict=feed_dict)
                 summary_writer.add_summary(summary_str, global_step)
 
@@ -157,9 +157,10 @@ def run_training(config):
                     start_time = time.time()
                     batch_images, batch_labels = sess.run([val_images, val_labels])
                     feed_dict = m.get_feed_dict(batch_images, batch_labels)
-                    loss_cls, acc, pred_y = sess.run([m.loss_cls, m.acc, m.pred_classes], feed_dict=feed_dict)
-                    print("gtlabel[:10]", val_labels[:10])
+                    loss_cls, acc, pred_y, pred_dog = sess.run([m.loss_cls, m.acc, m.pred_classes, m.pred_dog], feed_dict=feed_dict)
+                    print("gtlabel[:10]", batch_labels[:10])
                     print("pred_y[:10]", pred_y[:10])
+                    print("pred_dog[:10]", pred_dog[:10])
                     sum_loss += loss_cls
                     sum_acc += acc
                     duration = time.time() - start_time

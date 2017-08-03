@@ -44,47 +44,45 @@ def _bytes_feature(value):
 
 
 from scipy.misc import imread, imresize
+from PIL import Image
 from os import  walk
 
-def read_images(path, classes, img_height = 128, img_width = 128, img_channels = 3, log=False):
-    
-
+def read_images(path, classes, img_height = 128, img_width = 128, log=False):
     filenames = next(walk(path))[2]
     num_files = len(filenames)
     
     if log:
         print("Reading images from %s ... %d files are there" % (path, num_files))
 
-    images = np.zeros((num_files, img_height, img_width, img_channels), dtype=np.uint8)
-    labels = np.zeros((num_files, ), dtype=np.uint8)
+    images = []
+    labels = []
     for i, filename in enumerate(filenames):
         if i % 2000 == 0:
             if log:
                 print("%d / %d" % (i, len(filenames))) 
-        img = imread(join(path, filename))
-        img = imresize(img, (img_height, img_width)) # Make square image. Discard ratio. 
-        images[i, :, :, :] = img
+
+        img = Image.open(join(path, filename))
+        img.thumbnail((img_height, img_width)) # BiCubic Resize
+        # img.save(join('thumb', filename)) # save as file
+        images.append(np.array(img).astype(np.uint8))
         class_name = filename[0:3].lower() # Luckily both 'cat' and 'dog' have 3 characters
         if class_name == 'cat' or class_name == 'dog':
-            labels[i] = classes.index(class_name)
-        
+            labels.append(classes.index(class_name))
     if log:
         print("Done!") 
 
-    return images, labels
+    return images, labels, filenames
 
 
 
-def convert_to(images, labels, name, log=False):
+def convert_to(images, labels, filenames, name, log=False):
     if log:
         print("converting %s to tfrecords..."%(name))
     num_examples = labels.shape[0]
-    if images.shape[0] != num_examples:
+    if len(images) != num_examples:
         raise ValueError("Images size %d does not match label size %d." %
-                     (images.shape[0], num_examples))
-    rows = images.shape[1]
-    cols = images.shape[2]
-    depth = images.shape[3]
+                     (len(images), num_examples))
+    
 
     filename = join(DATA_DIR, name + '.tfrecords')
     print('Writing', filename)
@@ -93,13 +91,20 @@ def convert_to(images, labels, name, log=False):
         if index % 2000 == 0:
             if log:
                 print("%d / %d" % (index, num_examples)) 
-        image_raw = images[index].tostring()
+        image = images[index]
+        image_raw = image.tobytes()
+        rows = image.shape[0]
+        cols = image.shape[1]
+        depth = image.shape[2]
+        shape = np.array(image.shape, np.int32)
         example = tf.train.Example(features=tf.train.Features(feature={
             'height': _int64_feature(rows),
             'width': _int64_feature(cols),
             'depth': _int64_feature(depth),
             'label': _int64_feature(int(labels[index])),   # NOT assuming one-hot format of original data
-            'image_raw': _bytes_feature(image_raw)}))
+            'image_id': _bytes_feature(filenames[index].encode('utf-8')),
+            'image_raw': _bytes_feature(image_raw),
+            'shape': _bytes_feature(shape.tobytes())}))
         writer.write(example.SerializeToString())
     writer.close()
     if log:
@@ -109,9 +114,10 @@ def convert_to(images, labels, name, log=False):
 def process_trainval():
     log_flag = True
 
-    train_images, train_labels = read_images(TRAIN_DATA_PATH, IMG_CLASSES,
-                                                        IMG_HEIGHT, IMG_WIDTH, IMG_CHANNELS, log_flag)
-
+    train_images, train_labels, train_filenames = read_images(TRAIN_DATA_PATH, IMG_CLASSES,
+                                                        IMG_HEIGHT, IMG_WIDTH, log_flag)
+    train_labels = np.array(train_labels)
+    
     # Generate a validation set.
     cat_idx = np.where(train_labels == 1)[0]
     print("number of cats:", len(cat_idx))
@@ -127,22 +133,25 @@ def process_trainval():
     val_idx = np.random.permutation(np.array(cat_val_idx.tolist() + dog_val_idx.tolist()))
     train_idx = np.random.permutation(np.array(cat_train_idx.tolist() + dog_train_idx.tolist()))
 
-    validation_images = train_images[val_idx, :, :, :]
-    validation_labels = train_labels[val_idx]
-    train_images = train_images[train_idx, :, :, :]
-    train_labels = train_labels[train_idx]
+    validation_images = [train_images[i] for i in val_idx]
+    validation_labels = train_labels[val_idx] # numpy indexing
+    validation_filenames = [train_filenames[i] for i in val_idx]
+    train_images = [train_images[i] for i in train_idx]
+    train_labels = train_labels[train_idx] # numpy indexing
+    train_filenames = [train_filenames[i] for i in train_idx]
 
     # Convert to Examples and write the result to TFRecords.
 
-    convert_to(train_images, train_labels, 'train', log_flag)
-    convert_to(validation_images, validation_labels, 'validation', log_flag)
+    convert_to(train_images, train_labels, train_filenames, 'train', log_flag)
+    convert_to(validation_images, validation_labels, validation_filenames, 'validation', log_flag)
 
 def process_test():
     log_flag = True
     print("Reading test images...")
-    test_images, test_labels = read_images(TEST_DATA_PATH, IMG_CLASSES,
-                                                        IMG_HEIGHT, IMG_WIDTH, IMG_CHANNELS, log_flag)
-    convert_to(test_images, test_labels, 'test', log_flag)
+    test_images, test_labels, test_filenames = read_images(TEST_DATA_PATH, IMG_CLASSES,
+                                                        IMG_HEIGHT, IMG_WIDTH, log_flag)
+    test_labels = np.ones(len(test_images)) # dummy label
+    convert_to(test_images, test_labels, test_filenames, 'test', log_flag)
 
 def main(_):
     config = flags.FLAGS

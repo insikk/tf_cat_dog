@@ -48,6 +48,8 @@ def read_and_decode(filename_queue):
         # Defaults are not specified since both keys are required.
         features={
             'image_raw': tf.FixedLenFeature([], tf.string),
+            'shape': tf.FixedLenFeature([], tf.string),
+            'image_id': tf.FixedLenFeature([], tf.string),
             'label': tf.FixedLenFeature([], tf.int64),
             'height': tf.FixedLenFeature([], tf.int64),
             'width': tf.FixedLenFeature([], tf.int64),
@@ -55,14 +57,16 @@ def read_and_decode(filename_queue):
         })
 
     image = tf.decode_raw(features['image_raw'], tf.uint8)
+    shape = tf.decode_raw(features['shape'], tf.int32)
+
+    # image_id = tf.cast(features['image_id'], tf.string)
     img_height = tf.cast(features['height'], tf.int32)
     img_width = tf.cast(features['width'], tf.int32)
     img_depth = tf.cast(features['depth'], tf.int32)
     # Convert label from a scalar uint8 tensor to an int32 scalar.
     label = tf.cast(features['label'], tf.int32)
 
-    image.set_shape([IMG_PIXELS])
-    image = tf.reshape(image, [IMG_HEIGHT, IMG_WIDTH, IMG_CHANNELS])
+    image = tf.reshape(image, shape)
 
 
     return image, label
