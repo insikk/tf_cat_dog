@@ -9,6 +9,7 @@ import tensorflow as tf
 from tensorflow.contrib import slim
 
 import eval_cnn
+import pandas as pd
 
 from trainer import Trainer
 import preprocessor
@@ -21,6 +22,10 @@ flags = tf.app.flags
 
 
 flags.DEFINE_string("train_dir", "train_output", "training output directory. checkpoints, logs are saved in here.")
+
+flags.DEFINE_string("mode", "train", "run mode. train, eval")
+flags.DEFINE_string("eval_dir", "eval_output", "evaluation output directory. checkpoints, logs are saved in here.")
+
 
 flags.DEFINE_integer("load_step", 0, "load model weight at the given global step [0]")
 flags.DEFINE_integer("num_epochs", 100, "Num Epochs [100]")
@@ -153,6 +158,8 @@ def run_training(config):
                     batch_images, batch_labels = sess.run([val_images, val_labels])
                     feed_dict = m.get_feed_dict(batch_images, batch_labels)
                     loss_cls, acc, pred_y = sess.run([m.loss_cls, m.acc, m.pred_classes], feed_dict=feed_dict)
+                    print("gtlabel[:10]", val_labels[:10])
+                    print("pred_y[:10]", pred_y[:10])
                     sum_loss += loss_cls
                     sum_acc += acc
                     duration = time.time() - start_time
@@ -178,9 +185,109 @@ def run_training(config):
     sess.close()
 
 
+def run_eval(config):
+    print("EVALUATION MODE !!!!!!!")
+    image, label = read_data.inputs(data_set='test', batch_size=config.batch_size, num_epochs=1)
+    image = preprocessor.preprocess(image, config.augmentation, is_training=False)
+    # Shuffle the examples and collect them into batch_size batches.
+    # (Internally uses a RandomShuffleQueue.)
+    # We run this in two threads to avoid being a bottleneck.
+    test_images, test_labels = tf.train.batch(
+        [image, label], batch_size=config.batch_size, num_threads=4,
+        capacity=1000 + 3 * config.batch_size, allow_smaller_final_batch=True)
+
+    ## Build a model
+    m = model.get_model(config, is_training=True)        
+    
+    ## Summary 
+    summary_op = tf.summary.merge_all()
+
+    tf_global_step = tf.Variable(0, dtype=tf.int32, name='global_step', trainable=False)
+
+    
+    ## Init a model
+    init_op = tf.group(tf.initialize_all_variables(), tf.initialize_local_variables())
+    gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.9)
+    sess = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
+    sess.run(init_op)
+
+    # Load from previous one
+    if config.load_step > 0:
+        # At eval, load trained weight from train_dir
+        save_path = os.path.join(config.train_dir, "{}-{}".format('model.ckpt', config.load_step))
+        print("Loading saved model from {}".format(save_path))
+        saver = tf.train.Saver()
+        saver.restore(sess, save_path)
+    else:
+        restore(config, sess)
+    
+    ## Saver
+    saver = tf.train.Saver(tf.all_variables(), max_to_keep=5)
+
+    ## Start input queue
+    coord = tf.train.Coordinator()
+    threads = tf.train.start_queue_runners(sess=sess, coord=coord)
+
+    num_iter_per_epoch = int(math.ceil(NUM_TRAIN_EXAMPLES / config.batch_size))
+    num_batch_eval = int(math.ceil(NUM_VALIDATION_EXAMPLES / config.batch_size))
+    
+    eval_step = 0
+    # TODO: see what happend when there is last batch, less then batch size. Handle it. 
+    y_test = []
+    try:
+        sum_loss = 0.0
+        sum_acc = 0.0
+
+        while not coord.should_stop():
+            start_time = time.time()
+            batch_images, batch_labels = sess.run([test_images, test_labels])
+            # print("batch_image shape:", batch_images.shape)
+           
+            # if batch_images.get_shape()[0] is None:
+            #     # handle for the last batch
+            #     pad_num = tf.shape(batch_images)[0]
+
+            feed_dict = m.get_feed_dict(batch_images, batch_labels)
+            
+            loss_cls, loss_reg, acc, pred_y, pred_dog = sess.run([m.loss_cls, m.loss_reg, m.acc, m.pred_classes, m.pred_dog], feed_dict=feed_dict)
+            print("pred_y[:10]", pred_y[:10])
+            tot_loss = loss_cls + loss_reg
+            sum_loss += loss_cls
+            sum_acc += acc
+            y_test += pred_dog.tolist()
+                    
+            eval_step += 1
+            duration = time.time() - start_time
+            print("eval_step: %d, processed: %d, time:%.2f/sec"%(eval_step, eval_step * config.batch_size, duration))
+            assert not np.isnan(tot_loss), 'Model diverged with loss = NaN'
+    except tf.errors.OutOfRangeError:
+        test_loss = sum_loss / num_batch_eval
+        test_acc = sum_acc / num_batch_eval
+        print('Eval Done. loss_cls = %.5f, acc = %.2f'%(sum_loss / num_batch_eval, sum_acc / num_batch_eval))
+    finally:
+        coord.request_stop()
+
+    coord.join(threads)
+    sess.close()
+
+    # Create samplesubmission file
+    print("we got %d predictions:", len(y_test))
+    subm = pd.read_csv("sample_submission.csv")
+    for i, y in enumerate(y_test):
+        if y < 0.05:
+            y = 0.05
+        if y > 0.95:
+            y = 0.95
+        # clip to prevent huge penalty of logloss for wrong label
+        subm.loc[i, "label"] = y
+    subm.to_csv(os.path.join(config.eval_dir, "submission.csv"), index=False)
+
 def main(_):
     config = flags.FLAGS
-    run_training(config)
+    if config.mode == "train":
+        run_training(config)
+    elif config.mode == "eval":
+        run_eval(config)
 
 
 if __name__ == '__main__':

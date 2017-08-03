@@ -2,10 +2,13 @@
 Vision. Image Classifier Cat/Dog. Tensorflow 1.2
 
 # TODO
+[ ] ratio could be import for spatial feature, try zeropadding.
+[ ] start from small dataset
+[ ] Binary softmax vs sigmoid. logloss 
+[ ] Test submission on Kaggle. See public leaderboard result
 [ ] Make evaluator. Evaluate a given image dir with inference graph
 [ ] Make notebook so we can see inference result from known images.
 [ ] Use Adam optimizer. It's my favorite
-[ ] Test submission on Kaggle. See public leaderboard result
 [ ] Try multiple model ensemble and see changes on public leader board
 [ ] VGG Net is known as slow. Is there better model for image classification?
 [ ] Consider using image normalization with mean value from train_dataset
