@@ -173,7 +173,10 @@ def run_training(config):
                 val_loss = sum_loss / num_batch_eval
                 val_acc = sum_acc / num_batch_eval
                 summary = tf.Summary()
-                summary.value.add(tag='val_loss', simple_value=val_loss)
+
+                summary.value.add(tag='train_loss(cls)', simple_value=train_cls_loss)
+                summary.value.add(tag='train_acc', simple_value=train_acc)
+                summary.value.add(tag='val_loss(cls)', simple_value=val_loss)
                 summary.value.add(tag='val_acc', simple_value=val_acc)
                 summary_writer.add_summary(summary, global_step)
 
