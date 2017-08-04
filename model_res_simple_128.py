@@ -23,14 +23,14 @@ def _activation_summary(x):
 def res_unit(input_layer, num_filter, is_training, name):
     with slim.arg_scope([slim.batch_norm], is_training=is_training):
         with tf.variable_scope("res_unit_"+name):
-        part1 = slim.batch_norm(input_layer,activation_fn=None)
-        part2 = tf.nn.relu(part1)
-        part3 = slim.conv2d(part2,num_filter,[3,3],activation_fn=None)
-        part4 = slim.batch_norm(part3,activation_fn=None)
-        part5 = tf.nn.relu(part4)
-        part6 = slim.conv2d(part5,num_filter,[3,3],activation_fn=None)
-        output = input_layer + part6
-        return output
+            part1 = slim.batch_norm(input_layer,activation_fn=None)
+            part2 = tf.nn.relu(part1)
+            part3 = slim.conv2d(part2,num_filter,[3,3],activation_fn=None)
+            part4 = slim.batch_norm(part3,activation_fn=None)
+            part5 = tf.nn.relu(part4)
+            part6 = slim.conv2d(part5,num_filter,[3,3],activation_fn=None)
+            output = input_layer + part6
+            return output
 
 
 
@@ -69,33 +69,28 @@ def alexnet_v2(inputs,
                         outputs_collections=[end_points_collection]):
             # Input image size 128x128
             print("128x128 image check:", inputs)
-            net = res_unit(inputs, 64, is_training, "1_1")
-            net = res_unit(inputs, 64, is_training, "1_2")
+            net = slim.conv2d(inputs,64,[3,3])
+            net = res_unit(net, 64, is_training, "1_2")
             net = slim.max_pool2d(net, [2, 2], 2, scope='pool1')
 
             # Input image size 64x64
-            net = res_unit(net, 128, is_training, "2_1")
-            net = res_unit(net, 128, is_training, "2_2")
+            net = slim.conv2d(net,64,[3,3])
+            net = res_unit(net, 64, is_training, "2_1")
             net = slim.max_pool2d(net, [2, 2], 2, scope='pool2')
 
             # Input image size 32x32
-            net = res_unit(net, 256, is_training, "3_1")
-            net = res_unit(net, 256, is_training, "3_2")
+            net = slim.conv2d(net,64,[3,3])
+            net = res_unit(net, 64, is_training, "3_1")
             net = slim.max_pool2d(net, [2, 2], 2, scope='pool3')
 
-            # Input image size 16x16            
-            net = res_unit(net, 256, is_training, "4_1")
-            net = res_unit(net, 256, is_training, "4_2")
-            net = slim.max_pool2d(net, [2, 2], 2, scope='pool4')
             
-            # Input image size 8x8
-            print("8x8 image check:", net)            
+            # Input image size 16x16
 
             # Use conv2d instead of fully_connected layers.
             with slim.arg_scope([slim.conv2d],
                                 weights_initializer=tf.truncated_normal_initializer(0.0, 0.005),
                                 biases_initializer=tf.constant_initializer(0.1)):                
-                net = slim.conv2d(net, 2048, [8, 8], scope='fc5', padding='VALID')
+                net = slim.conv2d(net, 2048, [16,16], scope='fc5', padding='VALID')
                 net = slim.dropout(net, dropout_keep_prob, is_training=is_training,
                                 scope='dropout5')
                 net = slim.conv2d(net, num_classes, [1, 1],

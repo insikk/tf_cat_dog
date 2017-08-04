@@ -3,7 +3,7 @@ import time
 import math
 import os.path
 import read_data
-import model_cnn_simple_128 as model
+import model_res_simple_128 as model
 
 import tensorflow as tf
 from tensorflow.contrib import slim
