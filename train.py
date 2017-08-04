@@ -72,7 +72,7 @@ def run_training(config):
 
 
     image_val, label_val = read_data.inputs(data_set='validation', batch_size=config.batch_size, num_epochs=config.num_epochs)
-    image_val = preprocessor.preprocess(image_val, config.augmentation, is_training=False)
+    image_val = preprocessor.preprocess(image_val, False, is_training=False)
 
     # We run this in two threads to avoid being a bottleneck.
     val_images, val_labels = tf.train.batch(
@@ -87,7 +87,6 @@ def run_training(config):
     train_op = trainer.training(m.total_loss)
 
     ## Summary 
-
     summary_op = tf.summary.merge_all()
 
     tf_global_step = slim.get_or_create_global_step()
@@ -197,11 +196,11 @@ def run_eval(config):
     # (Internally uses a RandomShuffleQueue.)
     # We run this in two threads to avoid being a bottleneck.
     test_images, test_labels = tf.train.batch(
-        [image, label], batch_size=config.batch_size, num_threads=4,
+        [image, label], batch_size=config.batch_size, num_threads=2,
         capacity=1000 + 3 * config.batch_size, allow_smaller_final_batch=True)
 
     ## Build a model
-    m = model.get_model(config, is_training=True)        
+    m = model.get_model(config, is_training=False)
     
     ## Summary 
     summary_op = tf.summary.merge_all()
@@ -241,23 +240,26 @@ def run_eval(config):
     try:
         sum_loss = 0.0
         sum_acc = 0.0
+        num_examples = 0
 
         while not coord.should_stop():
             start_time = time.time()
             batch_images, batch_labels = sess.run([test_images, test_labels])
-            # print("batch_image shape:", batch_images.shape)
+            print("batch_image shape:", batch_images.shape)
            
             # if batch_images.get_shape()[0] is None:
             #     # handle for the last batch
             #     pad_num = tf.shape(batch_images)[0]
+            batch_size = batch_images.shape[0]
+            num_examples += batch_size
 
             feed_dict = m.get_feed_dict(batch_images, batch_labels)
             
             loss_cls, loss_reg, acc, pred_y, pred_dog = sess.run([m.loss_cls, m.loss_reg, m.acc, m.pred_classes, m.pred_dog], feed_dict=feed_dict)
             print("pred_y[:10]", pred_y[:10])
             tot_loss = loss_cls + loss_reg
-            sum_loss += loss_cls
-            sum_acc += acc
+            sum_loss += loss_cls * batch_size
+            sum_acc += acc * batch_size
             y_test += pred_dog.tolist()
                     
             eval_step += 1
@@ -265,26 +267,27 @@ def run_eval(config):
             print("eval_step: %d, processed: %d, time:%.2f/sec"%(eval_step, eval_step * config.batch_size, duration))
             assert not np.isnan(tot_loss), 'Model diverged with loss = NaN'
     except tf.errors.OutOfRangeError:
-        test_loss = sum_loss / num_batch_eval
-        test_acc = sum_acc / num_batch_eval
-        print('Eval Done. loss_cls = %.5f, acc = %.2f'%(sum_loss / num_batch_eval, sum_acc / num_batch_eval))
+        print('Out of range')
     finally:
+        test_loss = sum_loss / num_examples
+        test_acc = sum_acc / num_examples
+        print('Eval Done. loss_cls = %.5f, acc = %.2f'%(test_loss, test_acc))
+        # Create samplesubmission file
+        print("we got %d predictions:", len(y_test))
+        subm = pd.read_csv("sample_submission.csv")
+        for i, y in enumerate(y_test):
+            if y < 0.05:
+                y = 0.05
+            if y > 0.95:
+                y = 0.95
+            # clip to prevent huge penalty of logloss for wrong label
+            subm.loc[i, "label"] = y
+        subm.to_csv(os.path.join(config.eval_dir, "submission.csv"), index=False)
         coord.request_stop()
 
     coord.join(threads)
     sess.close()
 
-    # Create samplesubmission file
-    print("we got %d predictions:", len(y_test))
-    subm = pd.read_csv("sample_submission.csv")
-    for i, y in enumerate(y_test):
-        if y < 0.05:
-            y = 0.05
-        if y > 0.95:
-            y = 0.95
-        # clip to prevent huge penalty of logloss for wrong label
-        subm.loc[i, "label"] = y
-    subm.to_csv(os.path.join(config.eval_dir, "submission.csv"), index=False)
 
 def main(_):
     config = flags.FLAGS

@@ -64,7 +64,17 @@ def read_images(path, classes, img_height = 128, img_width = 128, log=False):
         img = Image.open(join(path, filename))
         img.thumbnail((img_height, img_width)) # BiCubic Resize
         # img.save(join('thumb', filename)) # save as file
-        images.append(np.array(img).astype(np.uint8))
+        imgarr = np.array(img).astype(np.uint8)
+        if imgarr.shape[2] == 1:
+            print("gray! found:", imgarr.shape)
+            print("filename::", filename)
+        if imgarr.shape[2] == 4:
+            print("alpha! found:", imgarr.shape)
+            print("filename::", filename)
+
+            imgarr = imgarr[:, :, :3]
+            print("remove alpha:", imgarr.shape)
+        images.append(imgarr)
         class_name = filename[0:3].lower() # Luckily both 'cat' and 'dog' have 3 characters
         if class_name == 'cat' or class_name == 'dog':
             labels.append(classes.index(class_name))
@@ -87,6 +97,7 @@ def convert_to(images, labels, filenames, name, log=False):
     filename = join(DATA_DIR, name + '.tfrecords')
     print('Writing', filename)
     writer = tf.python_io.TFRecordWriter(filename)
+    count = 0
     for index in range(num_examples):
         if index % 2000 == 0:
             if log:
@@ -106,9 +117,11 @@ def convert_to(images, labels, filenames, name, log=False):
             'image_raw': _bytes_feature(image_raw),
             'shape': _bytes_feature(shape.tobytes())}))
         writer.write(example.SerializeToString())
+        count += 1 
     writer.close()
     if log:
         print("Done!") 
+        print("count: ", count)
 
 
 def process_trainval():
