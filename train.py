@@ -18,7 +18,8 @@ import preprocessor
 
 flags = tf.app.flags
 
-
+np.random.seed(1)
+tf.set_random_seed(1)
 
 
 flags.DEFINE_string("train_dir", "train_output", "training output directory. checkpoints, logs are saved in here.")
@@ -70,14 +71,12 @@ def run_training(config):
         # Ensures a minimum amount of shuffling of examples.
         min_after_dequeue=1000)
 
-
-    image_val, label_val = read_data.inputs(data_set='validation', batch_size=config.batch_size, num_epochs=config.num_epochs)
+    image_val, label_val = read_data.inputs(data_set='validation', batch_size=config.batch_size, num_epochs=1)
     image_val = preprocessor.preprocess(image_val, False, is_training=False)
-
     # We run this in two threads to avoid being a bottleneck.
     val_images, val_labels = tf.train.batch(
         [image, label], batch_size=config.batch_size, num_threads=4,
-        capacity=500 + 3 * config.batch_size)
+        capacity=500 + 3 * config.batch_size, allow_smaller_final_batch=True)
 
     ## Build a model
     m = model.get_model(config, is_training=True)        
