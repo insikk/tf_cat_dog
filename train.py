@@ -27,7 +27,6 @@ flags.DEFINE_string("train_dir", "train_output", "training output directory. che
 flags.DEFINE_string("mode", "train", "run mode. train, eval")
 flags.DEFINE_string("eval_dir", "eval_output", "evaluation output directory. checkpoints, logs are saved in here.")
 
-
 flags.DEFINE_integer("load_step", 0, "load model weight at the given global step [0]")
 flags.DEFINE_integer("num_epochs", 100, "Num Epochs [100]")
 flags.DEFINE_integer("batch_size", 200, "Batch size [100]")
@@ -125,15 +124,23 @@ def run_training(config):
     # if True or config.debug:
     #    num_iter_per_epoch = 50
     try:
-
+        train_acc = 0.0
+        train_cls_loss = 0.0
+        train_stat_count = 0
         while not coord.should_stop():
             start_time = time.time()
             batch_images, batch_labels = sess.run([train_images, train_labels])
 
             feed_dict = m.get_feed_dict(batch_images, batch_labels)
 
-            global_step, _, loss_cls, loss_reg = sess.run([tf_global_step, train_op, m.loss_cls, m.loss_reg], feed_dict=feed_dict)
+            global_step, _, acc, loss_cls, loss_reg = sess.run([tf_global_step, train_op, m.acc, m.loss_cls, m.loss_reg], feed_dict=feed_dict)
             global_step += 1
+
+            # Gather training statistics for this epoch
+            train_acc += acc
+            train_cls_loss += loss_cls
+            train_stat_count += 1
+
             tot_loss = loss_cls + loss_reg
             duration = time.time() - start_time
             assert not np.isnan(tot_loss), 'Model diverged with loss = NaN'
@@ -145,16 +152,10 @@ def run_training(config):
             if global_step % num_iter_per_epoch == 0 and global_step > 0: # Do not save for step 0                
                 num_epochs = int(global_step / num_iter_per_epoch)
                 
-                print('epochs done on training dataset = %d. Save checkpoint and write summary' % num_epochs)
-                CHECKPOINT_FILE_PATH = os.path.join(config.train_dir, 'model.ckpt')
-                saver.save(sess, CHECKPOINT_FILE_PATH, global_step=global_step)
-                summary_str = sess.run(summary_op, feed_dict=feed_dict)
-                summary_writer.add_summary(summary_str, global_step)
 
                 print("Start Periodical Evaluation with Validation Set on Training Graph")
                 sum_loss = 0.0
                 sum_acc = 0.0
-
                 for batch_idx in range(num_batch_eval): # TODO: change it to tqdm. show progress bar
                     start_time = time.time()
                     batch_images, batch_labels = sess.run([val_images, val_labels])
@@ -167,13 +168,29 @@ def run_training(config):
                     sum_acc += acc
                     duration = time.time() - start_time
                     # print('Eval Batch %d/%d. loss_cls = %.5f, acc = %.2f'%(batch_idx, num_batch_eval, loss_cls, acc))
+                train_acc /= train_stat_count
+                train_cls_loss /= train_stat_count
                 val_loss = sum_loss / num_batch_eval
                 val_acc = sum_acc / num_batch_eval
                 summary = tf.Summary()
                 summary.value.add(tag='val_loss', simple_value=val_loss)
                 summary.value.add(tag='val_acc', simple_value=val_acc)
                 summary_writer.add_summary(summary, global_step)
-                print('Eval Done. loss_cls = %.5f, acc = %.2f'%(sum_loss / num_batch_eval, sum_acc / num_batch_eval))
+
+                epoch_info_str = 'train_cls %.5f train_acc %.2f val_cls %.5f val_acc %.2f'%(train_cls_loss, train_acc, val_loss, val_acc)
+                print('Eval Done. %s' % epoch_info_str)
+
+                print('epochs done on training dataset = %d. Save checkpoint and write summary' % num_epochs)
+                CHECKPOINT_FILE_PATH = os.path.join(config.train_dir, "model-{}.ckpt".format(epoch_info_str))
+                saver.save(sess, CHECKPOINT_FILE_PATH, global_step=global_step)
+                summary_str = sess.run(summary_op, feed_dict=feed_dict)
+                summary_writer.add_summary(summary_str, global_step)
+
+
+                # Reset train statistics for the next epoch
+                train_acc = 0.0
+                train_cls_loss = 0.0
+                train_stat_count = 0
                 
                 # eval_cnn.evaluate('validation', checkpoint_dir=TRAIN_DATA_DIR)
 
