@@ -1,10 +1,14 @@
 
 import tensorflow as tf
+from tensorflow.contrib import slim
+
 import read_data
+
 NUM_TRAIN_EXAMPLES = read_data.NUM_TRAIN_EXAMPLES
 
 REG_STRENGTH = 0.001
 INITIAL_LEARNING_RATE = 1e-3
+MIN_LEARNING_RATE = 0.00001
 LR_DECAY_FACTOR = 0.5
 EPOCHS_PER_LR_DECAY = 5
 MOVING_AVERAGE_DECAY = 0.9999
@@ -23,21 +27,17 @@ class Trainer:
         global_step = tf.Variable(0, name='global_step', trainable=False)
         decay_steps = int(EPOCHS_PER_LR_DECAY * NUM_TRAIN_EXAMPLES / self.config.batch_size)
         learning_rate = tf.train.exponential_decay(INITIAL_LEARNING_RATE, global_step, decay_steps, LR_DECAY_FACTOR, staircase=True)
+        learning_rate = tf.minimum(learning_rate, MIN_LEARNING_RATE)
         tf.summary.scalar('learning_rate', learning_rate)
 
         _loss_summaries(total_loss)
 
         optimizer = tf.train.AdamOptimizer(learning_rate)
-        opt_op = optimizer.minimize(total_loss, global_step=global_step)
 
         for var in tf.trainable_variables():
-            tf.summary.histogram(var.op.name, var)
+            tf.summary.histogram(var.op.name, var)        
 
-        mov_average_object = tf.train.ExponentialMovingAverage(MOVING_AVERAGE_DECAY, global_step)
-        moving_average_op = mov_average_object.apply(tf.trainable_variables())
-
-        with tf.control_dependencies([opt_op]):
-            train_op = tf.group(moving_average_op)
+        train_op = slim.learning.create_train_op(total_loss, optimizer)
 
         return train_op
 

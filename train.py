@@ -142,13 +142,16 @@ def run_training(config):
             if global_step % 10 == 0:
                 print('GlobalStep %d : loss_cls = %.5f, loss_reg = %.5f, loss_tot = %.5f (%.3f sec/step)'
                         % (global_step, loss_cls, loss_reg, tot_loss, duration))                
+
+            if global_step % num_iter_per_epoch == 0 and global_step > 0: # Do not save for step 0                
+                num_epochs = int(global_step / num_iter_per_epoch)
+                
+                print('epochs done on training dataset = %d. Save checkpoint and write summary' % num_epochs)
+                CHECKPOINT_FILE_PATH = os.path.join(config.train_dir, 'model.ckpt')
+                saver.save(sess, CHECKPOINT_FILE_PATH, global_step=global_step)
                 summary_str = sess.run(summary_op, feed_dict=feed_dict)
                 summary_writer.add_summary(summary_str, global_step)
 
-            if global_step % num_iter_per_epoch == 0 and global_step > 0: # Do not save for step 0
-                num_epochs = int(global_step / num_iter_per_epoch)
-                CHECKPOINT_FILE_PATH = os.path.join(config.train_dir, 'model.ckpt')
-                saver.save(sess, CHECKPOINT_FILE_PATH, global_step=global_step)
                 print("Start Periodical Evaluation with Validation Set on Training Graph")
                 sum_loss = 0.0
                 sum_acc = 0.0
@@ -172,7 +175,7 @@ def run_training(config):
                 summary.value.add(tag='val_acc', simple_value=val_acc)
                 summary_writer.add_summary(summary, global_step)
                 print('Eval Done. loss_cls = %.5f, acc = %.2f'%(sum_loss / num_batch_eval, sum_acc / num_batch_eval))
-                print('epochs done on training dataset = %d' % num_epochs)
+                
                 # eval_cnn.evaluate('validation', checkpoint_dir=TRAIN_DATA_DIR)
 
             step += 1
