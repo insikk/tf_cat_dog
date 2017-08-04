@@ -58,6 +58,7 @@ def read_and_decode(filename_queue):
 
     image = tf.decode_raw(features['image_raw'], tf.uint8)
     shape = tf.decode_raw(features['shape'], tf.int32)
+    image_id = tf.cast(features['image_id'], tf.string)
 
     # image_id = tf.cast(features['image_id'], tf.string)
     img_height = tf.cast(features['height'], tf.int32)
@@ -69,7 +70,7 @@ def read_and_decode(filename_queue):
     image = tf.reshape(image, shape)
 
 
-    return image, label
+    return image, label, image_id
 
 
 def inputs(data_set, batch_size, num_epochs):
@@ -106,6 +107,6 @@ def inputs(data_set, batch_size, num_epochs):
 
     # Even when reading in multiple threads, share the filename
     # queue.
-    image, label = read_and_decode(filename_queue)
+    image, label, image_id = read_and_decode(filename_queue)
 
-    return image, label
+    return image, label, image_id

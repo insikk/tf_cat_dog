@@ -190,13 +190,13 @@ def run_training(config):
 
 def run_eval(config):
     print("EVALUATION MODE !!!!!!!")
-    image, label = read_data.inputs(data_set='test', batch_size=config.batch_size, num_epochs=1)
+    image, label, image_id = read_data.inputs(data_set='test', batch_size=config.batch_size, num_epochs=1)
     image = preprocessor.preprocess(image, config.augmentation, is_training=False)
     # Shuffle the examples and collect them into batch_size batches.
     # (Internally uses a RandomShuffleQueue.)
     # We run this in two threads to avoid being a bottleneck.
-    test_images, test_labels = tf.train.batch(
-        [image, label], batch_size=config.batch_size, num_threads=2,
+    test_images, test_labels, test_ids = tf.train.batch(
+        [image, label, image_id], batch_size=config.batch_size, num_threads=4,
         capacity=1000 + 3 * config.batch_size, allow_smaller_final_batch=True)
 
     ## Build a model
@@ -237,6 +237,7 @@ def run_eval(config):
     eval_step = 0
     # TODO: see what happend when there is last batch, less then batch size. Handle it. 
     y_test = []
+    id_test = []
     try:
         sum_loss = 0.0
         sum_acc = 0.0
@@ -244,7 +245,8 @@ def run_eval(config):
 
         while not coord.should_stop():
             start_time = time.time()
-            batch_images, batch_labels = sess.run([test_images, test_labels])
+            batch_images, batch_labels, batch_ids = sess.run([test_images, test_labels, test_ids])
+            print("batch_ids type:", type(batch_ids))
             print("batch_image shape:", batch_images.shape)
            
             # if batch_images.get_shape()[0] is None:
@@ -261,6 +263,7 @@ def run_eval(config):
             sum_loss += loss_cls * batch_size
             sum_acc += acc * batch_size
             y_test += pred_dog.tolist()
+            id_test += batch_ids.tolist()
                     
             eval_step += 1
             duration = time.time() - start_time
@@ -274,15 +277,33 @@ def run_eval(config):
         print('Eval Done. loss_cls = %.5f, acc = %.2f'%(test_loss, test_acc))
         # Create samplesubmission file
         print("we got %d predictions:", len(y_test))
-        subm = pd.read_csv("sample_submission.csv")
-        for i, y in enumerate(y_test):
-            if y < 0.05:
-                y = 0.05
-            if y > 0.95:
-                y = 0.95
-            # clip to prevent huge penalty of logloss for wrong label
-            subm.loc[i, "label"] = y
-        subm.to_csv(os.path.join(config.eval_dir, "submission.csv"), index=False)
+        is_kaggle=False
+        if is_kaggle:
+            subm = pd.read_csv("sample_submission.csv")
+            for i, y in enumerate(y_test):
+                if y < 0.05:
+                    y = 0.05
+                if y > 0.95:
+                    y = 0.95
+                # clip to prevent huge penalty of logloss for wrong label
+                subm.loc[i, "label"] = y
+            subm.to_csv(os.path.join(config.eval_dir, "submission.csv"), index=False)
+        else:
+            subm = pd.DataFrame.from_dict({'filename': id_test, 'label': y_test})
+            for i, y in enumerate(y_test):
+                if y > 0.5:
+                    y = 1 # hard prediction for real contest
+                else:
+                    y = 0
+                subm.loc[i, "label"] = int(y)
+                subm.loc[i, "filename"] = subm.loc[i, "filename"].decode()
+            df = subm
+            df[['label']] = df[['label']].astype(int)
+
+            df['sort'] = df['filename'].str.extract('(\d+)', expand=False).astype(int)
+            df.sort_values('sort',inplace=True, ascending=True)
+            df = df.drop('sort', axis=1)
+            df.to_csv(os.path.join(config.eval_dir, "submission.csv"), index=False)
         coord.request_stop()
 
     coord.join(threads)
