@@ -27,7 +27,9 @@ class Trainer:
         global_step = tf.Variable(0, name='global_step', trainable=False)
         decay_steps = int(EPOCHS_PER_LR_DECAY * NUM_TRAIN_EXAMPLES / self.config.batch_size)
         learning_rate = tf.train.exponential_decay(INITIAL_LEARNING_RATE, global_step, decay_steps, LR_DECAY_FACTOR, staircase=True)
-        learning_rate = tf.minimum(learning_rate, MIN_LEARNING_RATE)
+        # learning_rate = tf.maximum(learning_rate, MIN_LEARNING_RATE)
+        learning_rate = 0.001
+
         tf.summary.scalar('learning_rate', learning_rate)
 
         _loss_summaries(total_loss)
